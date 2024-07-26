@@ -1,0 +1,159 @@
+### The following R code is for the 1) the evaluation of in silico prediction
+### algorithms and 2) training/evaluating machine learning algorithms for variant
+### curation. In order to acheive both of these goals, a dataset with known  
+### pathogenic and benign variants is required, whether from ClinVar or aother 
+### database. Additionally scores for each variant for whatever tests you are 
+### evaluating are required. Ensembl VEP is a good place to obtain these. 
+
+
+###install libraries
+install.packages("caret")
+install.packages("factoextra")
+install.packages("randomForest")
+install.packages("caretEnsemble")
+install.packages("pROC")
+install.packages("plotROC")
+install.packages("ROSE")
+install.packages("splitstackshape")
+
+#call library 
+library(caret)
+library(caretEnsemble)
+library(dplyr)
+library(randomForest)
+library(factoextra)
+library(ROSE)
+library(splitstackshape)
+library(pROC)
+library(plotROC)
+
+##load test set for evaluation
+setwd("##enter working directory file here##")
+test <- read.csv("###enter file name here.csv##")
+View(test)
+
+## Ensure that classification has only two labels: "Pathogenic" ad "Benign"
+test <- test %>%
+  mutate(Germline.classification = case_when(
+    Germline.classification == "Pathogenic" ~ "Pathogenic",
+    Germline.classification == "Likely pathogenic" ~ "Pathogenic",
+    Germline.classification == "Pathogenic/Likely pathogenic" ~ "Pathogenic",
+    Germline.classification == "Benign" ~ "Benign",
+    Germline.classification == "Likely benign" ~ "Benign",
+    Germline.classification == "Benign/Likely benign" ~ "Benign"
+  ))
+## for evaluation of accuracy, reference was labeled as 1 = pathogenic, 0 = benign
+test <- test %>%
+  mutate(clinvar_class = ifelse(Germline.classification == "Pathogenic", 1, 0))
+
+
+####START MACHINE LEARNING
+#Enter in Column Selection where ':' indicates 'through' in the example here 19:23 reads as 'column 19 through column 23'
+Columns = c(16, 19:20, 22:23, 30, 32, 43, 46, 49, 52, 57, 60, 68, 70) ### must include VC
+Columns2 = c( 19:20, 22:23, 30, 32, 43, 46, 49, 52, 57, 60, 68, 70) ### exclude VC if needing to make feature columns numeric
+
+#Set 'VC' equal to the column number for the variable of interest
+VC = 16
+
+
+## Assure your variable you are training to (path/benign classification) is a factor and your features are numeric
+names(test)[VC] <- "Variable"
+test$Variable = as.factor(test$Variable)
+test <- test%>%
+  mutate_at(all_of(Columns2), as.numeric)
+
+#Create Data Partition
+train <- createDataPartition(test$Variable, p=.8, list=FALSE, times=1)
+trainset <- test[train,]
+testset <- test[-train,]
+trainset <- na.omit(trainset) ## omit any blank of NA values from training set.
+##For the testset and subsequenct prediction, you can choose to use roughfix as the examples shows below.
+testset$type_variable <- na.roughfix(testset$type_variable)
+
+### Train and evaluate different machine learning models
+##Bagging algorithms
+control <- trainControl(method = "repeatedcv", number=10, repeats=3, savePredictions=TRUE, classProbs=TRUE)
+metric <- "Accuracy"
+set.seed(123)
+RandomForest <- train(Variable ~ ., data = trainset[c(Columns)], method = 'rf', metric=metric, trControl = control)
+set.seed(123)
+TreeBag <- train(Variable ~ ., data = trainset[c(Columns)], method = 'treebag', metric=metric, trControl=control)
+bagging_results <- resamples(list(treebag=TreeBag, rf=RandomForest)) ## evaluate accuracy
+summary(bagging_results) 
+
+## boosting algorithms
+set.seed(123)
+fit_c50 <- train(Variable ~ ., data= trainset[Columns], method = "C5.0", metric=metric, trControl=control)
+set.seed(123)
+fit_gbm <- train(Variable ~ ., data= trainset[Columns], method = "gbm", metric=metric, trControl=control, verbose=FALSE)
+boosting_results <- resamples(list(c5.0=fit_c50, gbm=fit_gbm)) ## evaluate accuacy
+summary(boosting_results)
+
+## stacking algorithms
+algorithmList <- c('lda', 'rpart', 'glm', 'knn', 'svmRadial')
+set.seed(123)
+models <- caretList(Variable~., data=trainset[c(Columns)], trControl = control, methodList = algorithmList)
+results <-resamples(models) ## evaluate accuracy
+summary(results)
+
+Correlation <- modelCor(results) ###Look at correlation between Models, want <0.75
+write.csv(Correlation, "/path/Correlation_Models.csv")
+
+### stack model predictions using a specific algorithm, example uses "knn"
+stackControl <- trainControl(method = "repeatedcv", number=10, repeats=3, savePredictions=TRUE, classProbs=TRUE)
+set.seed(123)
+stack_knn <-caretStack(models, method="knn", metric = "Accuracy", trControl=stackControl)
+print(stack_knn)  ## will show accuracy when with 'print' function
+
+### stack using treebag or rf
+set.seed(123)
+stack_treebag <- caretStack(models, method="treebag", metric="Accuracy", trcontrol=stackControl)
+print(stack_treebag) ## will show accuracy when with 'print' function
+set.seed(123)
+stack_rf <- caretStack(models, method="rf", metric="Accuracy", trcontrol=stackControl)
+print(stack_rf) ## will show accuracy when with 'print' function
+
+
+#Variable Importance 
+VariableImportance <- varImp(type_trained_model_here)
+plot(VariableImportance)
+
+
+#PCA
+cleaned_test <- na.omit(test) ### need to omit an NA's from features you are using
+NumCol =  Columns[Columns!= VC]
+all.pca.scale = prcomp(cleaned_test[c(NumCol)], scale = TRUE)
+fviz_pca_ind(all.pca.scale, labels = FALSE, habillage = cleaned_test$Variable, addEllipses = TRUE)
+
+#### Test prediction using "test" set
+testset <- testset %>% mutate_at(c(Columns2), na.roughfix) ## if you have NA's you can choose to omit or roughfix 
+predict <- predict(stack_rf, testset[c(Columns)])
+testset$Classification = as.factor(predict)
+
+#Confusion Matrix for test set 
+cmtestset <- confusionMatrix(as.factor(predict), as.factor(testset$Variable), positive = "Pathogenic")
+print(cmtestset)
+cmtestset <- data.frame(cbind (t(cmtestset$overall), t(cmtestset$byClass)))
+write.csv(cmtestset, "/path/cmtestset_stack_rf.csv")
+
+###Calculating AUC of testset
+testset <- testset %>%
+  mutate(V_pred = ifelse(Variable == "Pathogenic", 1, 0))
+testset <- testset %>%
+  mutate(Class_pred = ifelse(Classification =="Pathogenic", 1, 0))
+rocValues <- roc(testset$V_pred, testset$Class_pred)
+print(rocValues)
+plot.roc(rocValues)
+
+
+#### Testing Accuracy of cutoff method CADD >= 15, REVEL >= 0.5, and AlphaMiss == "likely path..."
+testset <- testset %>%
+  mutate(cutoff_pred = ifelse(CADD_phred >= 15 & REVEL_score.y >= 0.644 & am_class == "likely_pathogenic", "1", "0"))
+testset <- testset %>%
+  mutate(Variable_pred = ifelse(Variable == "2", 1, 0))
+cmtestset <- confusionMatrix(as.factor(testset$cutoff_pred), as.factor(testset$Variable_pred), positive = "1")
+print(cmtestset)
+cmtestset <- data.frame(cbind (t(cmtestset$overall), t(cmtestset$byClass)))
+write.csv(cmtestset, "/path/cutoff_cmtestset.csv")
+
+
