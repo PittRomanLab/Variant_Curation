@@ -1,0 +1,65 @@
+### The following R code is for the 1) the evaluation of in silico prediction
+### algorithms. In order to acheive this, a dataset with known  
+### pathogenic and benign variants is required, whether from ClinVar or another 
+### database. Additionally scores for each variant for whatever tests you are 
+### evaluating are required. Ensembl VEP is a suitable place to obtain these. 
+
+
+###install libraries
+install.packages("caret")
+install.packages("factoextra")
+install.packages("randomForest")
+install.packages("caretEnsemble")
+install.packages("pROC")
+install.packages("plotROC")
+install.packages("ROSE")
+install.packages("splitstackshape")
+
+#call library 
+library(caret)
+library(caretEnsemble)
+library(dplyr)
+library(randomForest)
+library(factoextra)
+library(ROSE)
+library(splitstackshape)
+library(pROC)
+library(plotROC)
+
+##load test set for evaluation
+setwd("##enter working directory file here##")
+test <- read.csv("###enter file name here.csv##")
+View(test)
+
+### Test  Accuracy of algorithms
+## for evaluation, algorithms decisions were labeled as 1 = pathogenic, 0 = benign
+test <- test %>%
+  mutate(Germline.classification = case_when(
+    Germline.classification == "Pathogenic" ~ "Pathogenic",
+    Germline.classification == "Likely pathogenic" ~ "Pathogenic",
+    Germline.classification == "Pathogenic/Likely pathogenic" ~ "Pathogenic",
+    Germline.classification == "Benign" ~ "Benign",
+    Germline.classification == "Likely benign" ~ "Benign",
+    Germline.classification == "Benign/Likely benign" ~ "Benign"
+  ))
+test <- test %>%
+  mutate(clinvar_class = ifelse(Germline.classification == "Pathogenic", 1, 0))
+## REVEL max score lists several scores, therefore needs to be split in individual cells and remerged as one cell with one value
+REVEL <- cSplit(test, 'REVEL_score', ',')
+REVEL <- REVEL %>%
+  mutate(REVEL_score = ifelse(REVEL_score_1 == ".", as.character(REVEL_score_2), REVEL_score_1))
+REVEL <- subset(REVEL, select = c(1, 88))
+testset <- merge(testset, REVEL, by = "Name")
+## For all algorithms you choose to test, determine the cutoffs for the ifelse statements. 
+## Some algorithms provide a score cutoff, while other algorithms give you a prediction
+## An example for each is provided below, 'D' = deleterious. 
+test <- test %>%
+  mutate(type_variable_name_here = ifelse(type_algorithm_column_here == "D", 1, 0))
+test <- test %>%
+  mutate(type_variable_name_here = ifelse(type_algorithm_column_here >= 0.5 , 1, 0))
+
+
+## Run confusion matrix for in silico algorithms agains known classification, labeled 'clinvar_class'
+cm_algorithm <- confusionMatrix(as.factor(test$type_variable_name_here), as.factor(test$clinvar_class), positive = "1")
+cm_algorithm <- data.frame(cbind (t(cm_algorithm$overall), t(cm_algorith$byClass)))
+write.csv(cm_algorithm, "/path/cm_algorithm.csv")
