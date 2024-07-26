@@ -1,0 +1,51 @@
+### The following R code is for classifying variants using the trained macchine learning algorithm
+### Will need to run gnomAD variants you want to classify through the ensemble VEP. Refer to supplemental methods for description of Ensembl VEP process.  
+
+
+###install packages
+install.packages("tidyverse")
+install.packages("caret") 
+
+###Load libraries
+library(caret)
+library(tidyverse)
+
+ExperimentColumns = c(6:11) ## Columns you are selecting as your features for prediction
+
+###Load data
+setwd("/path") ## set working directory where your file is located
+df <- read.csv("data.csv")
+View(data)
+df <- filter(df, df$Feature == "ENST00000373203.9" ) ## the VEP output may include multiple transcripts, make sure you filter for the correct transcript 
+REVEL <- cSplit(df, 'REVEL_score', ',') ### if you are using REVEL_max scores as a feature, there are multiple listed in a single cell, need to split into individual cells. 
+REVEL <- REVEL %>%
+  mutate(REVEL_score = ifelse(REVEL_score_1 == ".", as.character(REVEL_score_2), REVEL_score_1))
+REVEL <- subset(REVEL, select = c(1, REVEL_score))
+df <- merge(df, REVEL, by = "X.Uploaded_variation") ## X.Uploaded_variation is used to line up the two dataframes
+df <- subset(df, select = c(1:4,9, CADD, REVEL_max, etc.)) ## subset your columns of interest, typically your selected features and any useful variant identifiers (Uploaded_variation column) to align classification data with gnomAD data 
+df <- df%>%
+  mutate_at(c(6:11), as.numeric) ##make features numeric
+df <- df %>%
+  mutate_at(c(6:11), na.roughfix) ## use roughfix or na.omit to handle NA's 
+set.seed(123)
+
+
+#Select model for classification
+Model = stack_rf
+
+##Predict
+ExperimentPredict <- predict(Model, df[c(ExperimentColumns)])
+df$Classification = as.factor(ExperimentPredict)
+
+write.csv(df, file = "df_predict_output_4.csv")
+
+
+###Join orignal gnomAD data with Predicitons
+gnomAD_df <- read.csv("gnomAD_df.csv")
+gnomAD_df <- gnomAD_df %>% filter(`VEP.Annotation` == "missense_variant") ## filter for whatever variant types you are interested in.                               
+gnomAD_df$uploaded_variation <- paste(gnomAD_df$Transcript, gnomAD_df$Transcript.Consequence, sep = ":") ## Create a variable to succesffuly merge the gnomAD dataset and your VEP predicted dataset
+df <- df %>% select(X.Uploaded_variation, Classification)
+gnomAD_df <- right_join(gnomAD_df, df, by=c("uploaded_variation" = "X.Uploaded_variation"))
+
+## export data for further analysis
+write.csv(gnomAD_df, file = "gnomAD_df_predicted.csv")
