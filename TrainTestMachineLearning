@@ -1,6 +1,5 @@
-### The following R code is for the 1) the evaluation of in silico prediction
-### algorithms and 2) training/evaluating machine learning algorithms for variant
-### curation. In order to acheive both of these goals, a dataset with known  
+### The following R code is for training/evaluating machine learning algorithms for variant
+### curation. In order to acheive this, a dataset with known  
 ### pathogenic and benign variants is required, whether from ClinVar or aother 
 ### database. Additionally scores for each variant for whatever tests you are 
 ### evaluating are required. Ensembl VEP is a good place to obtain these. 
