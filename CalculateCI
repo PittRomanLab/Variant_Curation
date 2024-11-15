@@ -1,0 +1,31 @@
+# Function that calculates CI for 
+maf_ci <- function(df, alpha=0.05){
+  # each individual variant's MAF (minor allele fequency)
+  p_hats = (df$Allele.Count/df$Allele.Number)
+  
+  # sum of MAF
+  p = sum(p_hats)
+  
+  # standard error
+  s = sqrt( sum( (p_hats*(1-p_hats)/df$Allele.Number) ))
+  
+  
+  # critical value (depends on alpha)
+  z = qnorm(alpha/2, lower.tail=FALSE)
+  
+  # lower bound
+  lcb = p - z*s
+  
+  # upper bound
+  ucb = p + z*s
+  
+  # print results
+  cat("The cumulative MAF of these", nrow(df), "variants is:", p, "\n")
+  cat("The 95% CI for the cumulative MAF is: (", lcb, ",", ucb,")\n", sep="")
+  cat("The prevalence estimate is 1 in", 1/(2*p), 
+      "with 95% CI between 1 in", 1/(2*lcb), "and 1 in", 1/(2*ucb), "\n")
+  
+}
+
+maf_ci(df)
+
