@@ -1,4 +1,4 @@
-The following R code files is for the 1) evaluation of in silico prediction algorithm tools, 2) training/evaluating machine learning algorithms for variant curation, and 3) classifying variants.  Instructions for how to use R functions described in Anzell et al. 2024 (Predicting the prevalence of Hereditary Hemorrhagic Telangiectasia using gnomAD v4.1). A reference set with known pathogenic and benign variant is required.
+The following R code files is for the 1) evaluation of in silico prediction algorithm tools, 2) training/evaluating machine learning algorithms for variant curation, and 3) classifying variants, and 4) calculating summed allele frequency of pathogenic variants, lifetime risk, and 95% confidence intervals.  Instructions for how to use R functions described in Anzell et al. 2024 (Predicting the prevalence of Hereditary Hemorrhagic Telangiectasia using gnomAD v4.1). A reference set with known pathogenic and benign variant is required.
 
 The following steps are for in silico pathogenicity prediction algorithm evaluation and training a machine learning model on a reference set:
 
@@ -10,4 +10,8 @@ When satisfied with model performance, save and export needed objects in the env
 
 The following steps are for analyzing experimental data (unknown variants) after model training:
 
-Step 11: Open 'PredictVariants' file in Rstudio Step 12: Set 'ExperimentColumns' equal to the columns you'd like to analyze Same syntax as before, ':' reads as through IMPORTANT NOTE: Column names must be identical to those used in model training Step 13: Set 'Model' equal to whatever you named your model in Step 10. Step 11: Run code to classify variants. Step 14: Join the classification data to the gnomAD data using the ‘uploaded_variation’ column as described in the code. Step 15: export data for further analysis.                            
+Step 11: Open 'PredictVariants' file in Rstudio. Step 12: Set 'ExperimentColumns' equal to the columns you'd like to analyze Same syntax as before, ':' reads as through IMPORTANT NOTE: Column names must be identical to those used in model training. Step 13: Set 'Model' equal to whatever you named your model in Step 10. Step 14: Run code to classify variants. Step 15: Join the classification data to the gnomAD data using the ‘uploaded_variation’ column as described in the code. Step 16: export data for further analysis.   
+
+The following steps are for calculating total allele frequency, lifetime risk, and 95% confidence intervals:
+
+Step 17: Open the 'CalculateCI' file in Rstudio. Step 18: Upload CSV of predicted pathogenic variants. Step 19: Ensure dataframe (df) and columns for allele count/allele numbers are inputted correctly. Step 20: Run script.
