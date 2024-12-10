@@ -22,6 +22,8 @@ maf_ci <- function(df, alpha=0.05){
   # print results
   cat("The cumulative MAF of these", nrow(df), "variants is:", p, "\n")
   cat("The 95% CI for the cumulative MAF is: (", lcb, ",", ucb,")\n", sep="")
+  cat("The prevalence estimate is", p*2*5000, "in 5000",
+      "with 95% CI between", lcb*2*5000, " in 5000 and", ucb*2*5000, "in 5000 \n")
   cat("The prevalence estimate is 1 in", 1/(2*p), 
       "with 95% CI between 1 in", 1/(2*lcb), "and 1 in", 1/(2*ucb), "\n")
   
