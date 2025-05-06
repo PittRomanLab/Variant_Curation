@@ -1,0 +1,73 @@
+# R script to run a naive simulation of variant co-occurence (not modeling LD)
+# update Mar 31, 2025 to do counts of MORE THAN one alternate allele
+
+# Get sim number (for seeding)
+args = commandArgs(TRUE)
+sim.i <- eval( parse(text=args[1]) ) 
+
+setwd("/bgfs/jcarlson/hht")
+
+# Set seed using simulation number (avoid identical sims when parallelizing)
+seedi <- as.numeric(paste0("032025", sim.i))
+print(paste0("setting seed as: ", seedi))
+set.seed(seedi)
+
+##############################################################
+####### ENG variants
+
+print("Starting ENG simulation")
+
+# Load maf object
+load("./eng_mafs.RData")
+
+# Simulation settings
+k <- 1e8
+chunk_size <- 1e6  # Process 1 million individuals at a time
+carriers <- 0  # Counter for carriers
+
+# Run simulation 
+for (i in seq(1, k, by = chunk_size)) {
+  # Simulate genotypes for a chunk of individuals
+  genotypes <- matrix(rbinom(chunk_size * length(mafs), size = 2, prob = rep(mafs, each = chunk_size)), 
+                      nrow = chunk_size, ncol = length(mafs))
+  
+  # Count individuals carrying  more than one variant in the chunk
+  carriers <- carriers + sum(rowSums(genotypes) > 1)
+  
+  rm(genotypes)  # Free memory
+  gc()  # Trigger garbage collection
+}
+
+save(carriers, file=paste0("./naive_sims/eng_", sim.i, ".RData"))
+
+print("completed ENG simulation")
+
+##############################################################
+####### ACVRL1 variants
+
+print("Starting ACVRL1 simulation")
+
+# Load maf object
+load("./acvrl1_mafs.RData")
+
+# Simulation settings
+k <- 1e8
+chunk_size <- 1e6  # Process 1 million individuals at a time
+carriers <- 0  # Counter for carriers
+
+# Run simulation 
+for (i in seq(1, k, by = chunk_size)) {
+  # Simulate genotypes for a chunk of individuals
+  genotypes <- matrix(rbinom(chunk_size * length(mafs), size = 2, prob = rep(mafs, each = chunk_size)), 
+                      nrow = chunk_size, ncol = length(mafs))
+  
+  # Count individuals carrying more than one variant in the chunk
+  carriers <- carriers + sum(rowSums(genotypes) > 1)
+  
+  rm(genotypes)  # Free memory
+  gc()  # Trigger garbage collection
+}
+
+save(carriers, file=paste0("./naive_sims/acvrl1_", sim.i, ".RData"))
+
+print("completed ACVRL1 simulation")
